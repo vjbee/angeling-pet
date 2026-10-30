@@ -1662,16 +1662,30 @@ final class PetController: NSObject, NSMenuDelegate {
         let statusFont = statusBold ? NSFont.boldSystemFont(ofSize: 11) : NSFont.systemFont(ofSize: 11)
         if theme.minimal {
             out.append(NSAttributedString(string: dotPrefix, attributes: [.font: NSFont.systemFont(ofSize: 9), .foregroundColor: dot, .baselineOffset: 1]))
-            out.append(NSAttributedString(string: title, attributes: [.font: NSFont.systemFont(ofSize: 12, weight: .semibold), .foregroundColor: theme.text]))
+            let titleFont = NSFont.systemFont(ofSize: 12, weight: .semibold)
+            let tabStop = width - 22
+            // Shorten a long title so the right-aligned status stays on the same line
+            let statusWidth = status.isEmpty ? 0 : ceil(NSAttributedString(string: status, attributes: [.font: statusFont]).size().width) + 10
+            let fitted = fit(title, font: titleFont, maxWidth: tabStop - dotIndent - statusWidth)
+            out.append(NSAttributedString(string: fitted, attributes: [.font: titleFont, .foregroundColor: theme.text]))
             if !status.isEmpty { out.append(NSAttributedString(string: "\t" + status, attributes: [.font: statusFont, .foregroundColor: statusColor])) }
             let para = NSMutableParagraphStyle()
-            para.tabStops = [NSTextTab(textAlignment: .right, location: width - 22)]
+            para.tabStops = [NSTextTab(textAlignment: .right, location: tabStop)]
             out.addAttribute(.paragraphStyle, value: para, range: NSRange(location: 0, length: out.length))
         } else {
             out.append(NSAttributedString(string: "\(icon) \(title)", attributes: [.font: NSFont.boldSystemFont(ofSize: 11), .foregroundColor: titleColor]))
             if !status.isEmpty { out.append(NSAttributedString(string: "  " + status, attributes: [.font: statusFont, .foregroundColor: statusColor])) }
         }
         return out
+    }
+
+    /// `s` cut down with a trailing "…" until it fits in `maxWidth` points.
+    func fit(_ s: String, font: NSFont, maxWidth: CGFloat) -> String {
+        let width = { (t: String) in NSAttributedString(string: t, attributes: [.font: font]).size().width }
+        if width(s) <= maxWidth { return s }
+        var chars = Array(s)
+        while !chars.isEmpty && width(String(chars) + "…") > maxWidth { chars.removeLast() }
+        return String(chars) + "…"
     }
 
     let dotPrefix = "●  "
