@@ -789,11 +789,21 @@ final class BubbleView: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         let body = NSRect(x: 1, y: tail, width: bounds.width - 2, height: bounds.height - tail - 1)
-        let path = NSBezierPath(roundedRect: body, xRadius: theme.minimal ? 14 : 12, yRadius: theme.minimal ? 14 : 12)
+        // One outline with the tail built into the bottom edge: a separate tail shape leaves the
+        // body's edge drawn across its base and a darker seam where the translucent fills overlap.
+        let r: CGFloat = theme.minimal ? 14 : 12
         let mid = bounds.midX
-        path.move(to: NSPoint(x: mid - 8, y: tail + 0.5))
+        let path = NSBezierPath()
+        path.move(to: NSPoint(x: body.minX + r, y: body.minY))
+        path.line(to: NSPoint(x: mid - 8, y: body.minY))
         path.line(to: NSPoint(x: mid, y: 1))
-        path.line(to: NSPoint(x: mid + 8, y: tail + 0.5))
+        path.line(to: NSPoint(x: mid + 8, y: body.minY))
+        path.appendArc(from: NSPoint(x: body.maxX, y: body.minY), to: NSPoint(x: body.maxX, y: body.maxY), radius: r)
+        path.appendArc(from: NSPoint(x: body.maxX, y: body.maxY), to: NSPoint(x: body.minX, y: body.maxY), radius: r)
+        path.appendArc(from: NSPoint(x: body.minX, y: body.maxY), to: NSPoint(x: body.minX, y: body.minY), radius: r)
+        path.appendArc(from: NSPoint(x: body.minX, y: body.minY), to: NSPoint(x: mid, y: body.minY), radius: r)
+        path.close()
+        path.lineJoinStyle = .round
         theme.bubbleFill.setFill()
         path.fill()
         theme.bubbleStroke.setStroke()
