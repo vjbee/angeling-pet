@@ -58,12 +58,13 @@ let codexAnims: [String: Anim] = [
 final class SpriteSheet: Sprite {
     private var cache: [String: NSImage] = [:]
     let image: CGImage
-    var anims: [String: Anim] { codexAnims }
+    let anims: [String: Anim]
 
-    init?(url: URL) {
+    init?(url: URL, anims: [String: Anim] = codexAnims) {
         guard let img = NSImage(contentsOf: url),
               let cg = img.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return nil }
         image = cg
+        self.anims = anims
     }
 
     func frame(row: Int, col: Int) -> NSImage? {
@@ -82,7 +83,25 @@ struct CodexPet: Decodable {
     let id: String
     let displayName: String
     let spritesheetPath: String?
+    /// Optional, Angeling only: more or fewer frames for an animation, e.g. {"idle": {"frames": 16, "ms": 90}}.
+    /// The frames sit left to right on that animation's usual row, so a sheet can be up to 16 cells wide.
+    let animations: [String: PetAnim]?
     var sheetURL: URL { petsDir.appendingPathComponent(id).appendingPathComponent(spritesheetPath ?? "spritesheet.webp") }
+
+    struct PetAnim: Decodable {
+        let frames: Int
+        let ms: Double
+    }
+
+    /// The Codex timings with this pet's overrides applied.
+    var anims: [String: Anim] {
+        var out = codexAnims
+        for (name, o) in animations ?? [:] {
+            guard let base = codexAnims[name], (1...16).contains(o.frames), o.ms > 0 else { continue }
+            out[name] = Anim(row: base.row, durations: Array(repeating: o.ms, count: o.frames), loops: base.loops)
+        }
+        return out
+    }
 }
 
 let petsDir = baseDir.appendingPathComponent("pets")
@@ -1394,7 +1413,7 @@ final class PetController: NSObject, NSMenuDelegate {
 
     /// The chosen character's artwork; Angeling when it is "angeling" or its files are gone.
     static func sprite(_ id: String, angeling: SpriteSheet) -> Sprite {
-        if let p = codexPets.first(where: { $0.id == id }), let s = SpriteSheet(url: p.sheetURL) { return s }
+        if let p = codexPets.first(where: { $0.id == id }), let s = SpriteSheet(url: p.sheetURL, anims: p.anims) { return s }
         return bomberCharacters.first { $0.id == id }.flatMap { BomberSprite($0) } ?? angeling
     }
 

@@ -151,7 +151,7 @@ Ragnarok Online, Angeling, the emotes and the level-up sound are © Gravity Co.,
 - **Emotes**: the release; otherwise the [iRO Wiki emote list](https://irowiki.org/wiki/Emotes).
 - **Reminder chime**: the release; otherwise [MyInstants](https://www.myinstants.com/en/instant/level-up-ragnarok/). If neither works, reminders use a macOS sound.
 - **Bomber characters**: the release's `characters.zip`. The sheets come from the Bomber game; like the rest of the artwork they are not covered by the MIT license and are not in the git history. `scripts/import-characters.py <pack.zip>` rebuilds `assets/characters/` from the original pack.
-- **Extra pets** (Bee Husky): the release's `pets.zip`, one Codex v2 pet per folder. `swift scripts/import-pet.swift <sheet> <id> "<Name>"` adds a pet to `assets/pets/`, fitting a generated sheet onto the exact 192×208 grid.
+- **Extra pets** (Bee Husky): the release's `pets.zip`, one Codex v2 pet per folder. `swift scripts/import-pet.swift <sheet> <id> "<Name>"` adds a pet to `assets/pets/`, fitting a generated sheet onto the exact 192×208 grid. A pet's `pet.json` can also set `animations` (`{"idle": {"frames": 16, "ms": 90}}`) for up to 16 frames per animation on a sheet up to 16 cells wide.
 
 ## Development
 
