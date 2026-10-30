@@ -1,0 +1,23 @@
+README.md
+  s_3571fdba64912e::t_3c0f95bcde297d 154
+src/main.swift
+  s_3571fdba64912e::t_e547b47e67ecb6 61,63,67,86-88,90-104,1416
+docs/Custom-Pet.md
+  s_3571fdba64912e::t_5a6725277f1924 64-80
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.3",
+  "base_commit_sha": "9211a4eec938f96166f8cce19002a8321d9caca4",
+  "prompts": {},
+  "sessions": {
+    "s_3571fdba64912e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "87478c6c-d920-4216-b7c1-dbe98d88a88b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "vasit <n_vasit@hotmail.com>"
+    }
+  }
+}
