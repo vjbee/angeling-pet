@@ -1,0 +1,28 @@
+docs/Usage.md
+  s_2fbec6f667385f::t_828fc9aadf8010 64
+README.md
+  s_2fbec6f667385f::t_828fc9aadf8010 63
+src/main.swift
+  s_2fbec6f667385f::t_828fc9aadf8010 190,201
+  s_2fbec6f667385f::t_ac261be72bd27c 156,183-189,209,805-812,815-833,844,877,1244
+docs/Activity-Bubble.md
+  s_2fbec6f667385f::t_ac261be72bd27c 42
+docs/Development.md
+  s_2fbec6f667385f::t_828fc9aadf8010 49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a8c36aa3f9fdb4479e18cfb788f97d7b84ae79d2",
+  "prompts": {},
+  "sessions": {
+    "s_2fbec6f667385f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bd36d63e-4ee5-4050-8bdc-3e859e776a28",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "chaipaphat.kae <k.chaipaphat@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,46 @@
+scripts/package.sh
+  s_78d9edb658afbb::t_b72e45ffc2653d 4,36-37
+docs/Custom-Pet.md
+  s_78d9edb658afbb::t_31e5571fc581ab 5,53-62
+  s_78d9edb658afbb::t_2b715ffabf9d82 63
+docs/Usage.md
+  s_78d9edb658afbb::t_31e5571fc581ab 65
+.gitignore
+  s_78d9edb658afbb::t_b72e45ffc2653d 8
+src/main.swift
+  s_78d9edb658afbb::t_4048c883eb8464 80-99,1363-1364,1856,1858-1864
+docs/Installation.md
+  s_78d9edb658afbb::t_31e5571fc581ab 81
+docs/Development.md
+  s_78d9edb658afbb::t_31e5571fc581ab 49,78,80,86-87
+  s_78d9edb658afbb::t_56d8c47c194c26 88-89
+scripts/fetch-assets.sh
+  s_78d9edb658afbb::t_b72e45ffc2653d 8,80-89
+  s_78d9edb658afbb::t_db0b06291cc19c 90-92
+scripts/import-pet.swift
+  s_78d9edb658afbb::t_8c95cf7b88d7bc 1-86
+CLAUDE.md
+  s_78d9edb658afbb::t_31e5571fc581ab 16,56
+install.sh
+  s_78d9edb658afbb::t_b72e45ffc2653d 56-62
+docs/How-It-Works.md
+  s_78d9edb658afbb::t_31e5571fc581ab 20
+README.md
+  s_78d9edb658afbb::t_31e5571fc581ab 64,154
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8f31f02bb92b3d662df9c2dbcd12f57f0852c3f5",
+  "prompts": {},
+  "sessions": {
+    "s_78d9edb658afbb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "42cc5978-96b0-4193-ad18-abdb08e3cdf3",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "chaipaphat.kae <k.chaipaphat@gmail.com>"
+    }
+  }
+}

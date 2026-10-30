@@ -1,0 +1,36 @@
+docs/Usage.md
+  s_2fbec6f667385f::t_ea25fdd83fe5ff 16,64
+src/main.swift
+  s_2fbec6f667385f::t_6e09e2f5cf8794 1010-1013,1029,1039
+  s_2fbec6f667385f::t_bd9718dcf09be4 704-712,784-786,881,923-925,979,1020-1021,1025,1028,1045-1046,1052-1055,1065-1077,1087-1088
+  s_2fbec6f667385f::t_ac2bc4862fe374 1006,1022-1024,1027,1042,1044,1050-1051,1057
+  s_2fbec6f667385f::t_d63637955f7008 1062
+  s_2fbec6f667385f::t_631132ebf1aec6 182,185-188,192,199,930
+  s_2fbec6f667385f::t_206dc333c04e4a 977-978,980-988,990-1005,1007-1009,1014-1019,1026,1030-1037,1040-1041,1047-1049,1056,1058-1059,1063-1064
+  s_2fbec6f667385f::t_89fe79f016974b 849,865-869,1043
+  s_2fbec6f667385f::t_e4aca340365acd 989,1038
+  s_2fbec6f667385f::t_493d346e28e908 143-144,183-184,757-764,781,802-803,810-811,823,835-848,850-864,870-880
+  s_2fbec6f667385f::t_ee784d4b880ad8 1060-1061
+docs/Activity-Bubble.md
+  s_2fbec6f667385f::t_ea25fdd83fe5ff 43
+README.md
+  s_2fbec6f667385f::t_ea25fdd83fe5ff 63-64
+docs/Development.md
+  s_2fbec6f667385f::t_ea25fdd83fe5ff 49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a71c1442230fde910d9684aa97cd5fcc2cb04fe7",
+  "prompts": {},
+  "sessions": {
+    "s_2fbec6f667385f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bd36d63e-4ee5-4050-8bdc-3e859e776a28",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": null
+    }
+  }
+}
