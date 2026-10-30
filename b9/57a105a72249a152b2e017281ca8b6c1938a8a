@@ -1,0 +1,29 @@
+src/main.swift
+  s_fefefeaa2487ba::t_dd33c5e48ae5ae 1665-1670
+  s_fefefeaa2487ba::t_2b8324439c1432 1682-1687
+  s_3571fdba64912e::t_1882d5f54aaa50 1673,1688-1690
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.3",
+  "base_commit_sha": "b957a105a72249a152b2e017281ca8b6c1938a8a",
+  "prompts": {},
+  "sessions": {
+    "s_3571fdba64912e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "87478c6c-d920-4216-b7c1-dbe98d88a88b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "vasit <n_vasit@hotmail.com>"
+    },
+    "s_fefefeaa2487ba": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "43469524-f85a-494f-af40-f8560e767067",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": null
+    }
+  }
+}
