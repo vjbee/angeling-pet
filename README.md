@@ -45,6 +45,7 @@ The full guide (in Thai) is in **[docs/](docs/README.md)**.
 | [First run](docs/First-Run.md) | [Reminders](docs/Reminders.md) | [How it works](docs/How-It-Works.md) |
 | | [LINE notifications](docs/LINE-Notifications.md) | [Development](docs/Development.md) |
 | | [Discord notifications](docs/Discord-Notifications.md) | |
+| | [Claude usage limits](docs/Usage-Limits.md) | |
 | | [Emotes and animations](docs/Emotes-and-Animations.md) | |
 | | [Use a different pet](docs/Custom-Pet.md) | |
 
@@ -52,6 +53,8 @@ The full guide (in Thai) is in **[docs/](docs/README.md)**.
 
 - **Activity bubble**: one row per session, showing its status (กำลังทำ / ต้องดูตอนนี้ / ติดปัญหา / เสร็จแล้ว), what it is doing right now, the prompt, and the task-list progress.
 - **Finished tasks**: shown in green until you open or dismiss them, or for 30 minutes.
+- **Collapse and expand**: the ⌄ / ⌃ chevron on the bubble's top row switches between the two rows that matter most (with what each session is doing now; the rest counted in a "+N อื่น ๆ" line that turns orange when it hides a session waiting on you) and every session in full. Angeling remembers the choice. While collapsed, LINE and Discord counts move to badges on Angeling.
+- **Claude usage limits** (off by default, menu 📊): the bubble's top row shows the weekly and 5-hour limits, e.g. `สัปดาห์ 62% · 5 ชม. 40%`, coloured blue, orange from 60% and red above 85%. Without a 5-hour window it shows the weekly reset day instead. When the bubble is hidden, a small two-layer bar under Angeling shows both; the menu can also show the bar all the time, or only the bar. Shows used or remaining. Angeling makes the `/omg` face once per cycle at 90%. Claude Code only gives these numbers to the status line, so turning this on wraps your status line (yours still runs) and turning it off puts it back. See [Claude usage limits](docs/Usage-Limits.md).
 - **Click to jump**:
   - Click a row to open that session.
   - Click Angeling to open the latest active session.
@@ -117,7 +120,7 @@ Angeling checks GitHub for a new release at launch and every 6 hours. When one i
 ## Uninstall
 
 ```bash
-~/.claude/angeling-pet/uninstall.sh           # remove app, login item and hooks
+~/.claude/angeling-pet/uninstall.sh           # remove app, login item and hooks; restore your status line
 ~/.claude/angeling-pet/uninstall.sh --purge   # also delete ~/.claude/angeling-pet, reminders and preferences
 ```
 
@@ -139,6 +142,7 @@ Claude Code hooks ──► hooks/angeling-hook.sh ──► ~/.claude/angeling-
 - **Reminders** are stored in `~/.claude/angeling-pet/reminders.json` and linked to their Calendar events through EventKit.
 - **Discord** is polled every 3 s: only its Dock badge, through `lsappinfo`.
 - **LINE** is polled every 3 s: only its Dock badge, through `lsappinfo`.
+- **Usage limits** (when turned on): `statusLine` in `~/.claude/settings.json` runs `~/.claude/angeling-pet/statusline.sh`, which saves Claude Code's status JSON to `limits.json` and then runs your own status line. The app reads `rate_limits` from it every 3 s.
 - **The app** is a single-file AppKit program. Its only network call is the update check against the GitHub releases API, which can be turned off in the menu (อัปเดต → ตรวจอัตโนมัติ). It has no dependencies and runs as an accessory app, so it has no Dock icon.
 
 ## Artwork

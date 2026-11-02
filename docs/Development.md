@@ -34,7 +34,10 @@ ANGELING_SNAPSHOT=/tmp/a.png ~/Applications/Angeling.app/Contents/MacOS/Angeling
 
 | ตัวแปร | ผล |
 |---|---|
-| `ANGELING_EXPANDED=1` | แบบขยาย |
+| `ANGELING_EXPANDED=1` | แบบขยาย (ไม่ใส่ = แบบย่อ ไม่ว่าจะเลือกอะไรไว้) |
+| `ANGELING_LIMITS=62,40` | จำลอง limit สัปดาห์,5 ชม. (`71` = มีแค่สัปดาห์, `none` = บัญชีไม่มีข้อมูล, `wait` = ยังไม่มีข้อมูล) และเปิดการแสดง limit |
+| `ANGELING_LIMIT_MODE=left` | แสดง limit เป็น % ที่เหลือ |
+| `ANGELING_LIMIT_PLACE=both` | ที่แสดง limit (`auto`, `both`, `bar`) |
 | `ANGELING_HIDE_ACTIVITY=1` | ซ่อนบับเบิล (เห็นป้ายตัวเลข) |
 | `ANGELING_HOVER=1` | แสดงปุ่มซ่อนหรือแสดง |
 | `ANGELING_EMOTE=lv` | บังคับให้แสดง emote |

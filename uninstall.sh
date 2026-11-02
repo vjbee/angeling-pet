@@ -1,5 +1,5 @@
 #!/bin/bash
-# Remove Angeling: app, login item and Claude Code hooks. Keeps ~/.claude/angeling-pet
+# Remove Angeling: app, login item, Claude Code hooks and the limit status line wrapper. Keeps ~/.claude/angeling-pet
 # unless --purge is given.
 set -euo pipefail
 RUNTIME="$HOME/.claude/angeling-pet"
@@ -19,6 +19,18 @@ if [ -f "$SETTINGS" ] && command -v jq >/dev/null; then
                  | with_entries(select(.value | length > 0)))
     else . end' "$SETTINGS.angeling-backup" > "$SETTINGS.tmp" && jq -e . "$SETTINGS.tmp" >/dev/null && mv "$SETTINGS.tmp" "$SETTINGS"
   echo "Removed hooks from $SETTINGS (backup: $SETTINGS.angeling-backup)"
+  # Put back the user's own status line if Angeling's limit wrapper (menu 📊) still holds it.
+  ORIG=null
+  [ -s "$RUNTIME/statusline-orig.json" ] && ORIG=$(cat "$RUNTIME/statusline-orig.json")
+  if jq --argjson orig "$ORIG" '
+      if ((.statusLine.command? // "") | tostring | contains("angeling-pet/statusline.sh")) then
+        (if $orig == null then del(.statusLine) else .statusLine = $orig end)
+      else . end' "$SETTINGS" > "$SETTINGS.tmp" 2>/dev/null && jq -e . "$SETTINGS.tmp" >/dev/null; then
+    mv "$SETTINGS.tmp" "$SETTINGS"
+  else
+    rm -f "$SETTINGS.tmp"
+  fi
+  rm -f "$RUNTIME/statusline-orig.json" "$RUNTIME/statusline-orig.cmd" "$RUNTIME/statusline.sh" "$RUNTIME/limits.json"
 fi
 
 if [ "${1:-}" = "--purge" ]; then

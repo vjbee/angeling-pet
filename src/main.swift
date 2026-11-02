@@ -2,7 +2,8 @@
 // Reads per-session JSON written by ~/.claude/angeling-pet/hook.sh.
 //
 // Interaction (modelled on the Codex pet overlay):
-//   click pet          hop + expand/collapse the activity stack
+//   click pet          hop + jump to the latest session
+//   ⌄ / ⌃ on bubble    collapse to the two rows that matter most / show every session
 //   click a row        jump to that session (Claude desktop / Terminal / iTerm / VS Code …)
 //   right-click row    dismiss that row until the session does something new
 //   drag pet           move (runs left/right while dragging)
@@ -13,6 +14,7 @@
 //   Discord row        unread DMs + @mentions (Dock badge count); click opens Discord
 //   ⌥⌘R                set a reminder (also added to Calendar); Angeling chimes at the time
 //   update row         a newer GitHub release exists; click to install it
+//   limit row / bar    Claude's weekly and 5-hour usage (menu: 📊): the bubble's top row, a bar under the pet, or both
 import AppKit
 import Carbon.HIToolbox
 import EventKit
@@ -879,6 +881,206 @@ final class ReminderForm: NSObject {
     }
 }
 
+// MARK: - Usage limits (Claude's 5-hour and weekly rate limits)
+// Claude Code passes rate_limits only to the status line, not to hooks. Turning the feature on
+// points settings.json's statusLine at a small wrapper that saves the status JSON to limits.json
+// and then runs the user's own status line, if they had one. Turning it off puts theirs back.
+
+struct LimitWindow {
+    let used: Double      // percent, 0…100
+    let resetsAt: Date?
+}
+
+enum LimitState: Equatable {
+    case off, waiting, noData
+    case data(week: LimitWindow?, five: LimitWindow?)
+    static func == (a: LimitState, b: LimitState) -> Bool { a.signature == b.signature }
+    var signature: String {
+        switch self {
+        case .off: return "off"
+        case .waiting: return "wait"
+        case .noData: return "none"
+        case let .data(w, f):
+            func s(_ x: LimitWindow?) -> String { x.map { "\(Int($0.used.rounded()))@\(Int($0.resetsAt?.timeIntervalSince1970 ?? 0))" } ?? "-" }
+            return "w\(s(w))f\(s(f))"
+        }
+    }
+}
+
+/// Bar and number colour: blue, then orange from 60%, red above 85% (always by the share used).
+func limitColor(_ used: Double) -> NSColor {
+    used < 60 ? NSColor(calibratedRed: 0.36, green: 0.55, blue: 0.94, alpha: 1) : used <= 85 ? alarmOrange : alertRed
+}
+
+let thaiDays = ["อา.", "จ.", "อ.", "พ.", "พฤ.", "ศ.", "ส."]
+
+/// "พฤ. 14:00" (or just "16:30" today).
+func limitResetText(_ d: Date) -> String {
+    let time = clockTime.string(from: d)
+    return Calendar.current.isDateInToday(d) ? time : "\(thaiDays[Calendar.current.component(.weekday, from: d) - 1]) \(time)"
+}
+
+/// "อีก 2 วัน 5 ชม." / "อีก 1 ชม. 20 นาที" / "อีก 12 นาที".
+func limitCountdown(_ d: Date) -> String {
+    let m = max(0, Int(d.timeIntervalSinceNow / 60))
+    if m >= 1440 { return "อีก \(m / 1440) วัน \(m % 1440 / 60) ชม." }
+    if m >= 60 { return "อีก \(m / 60) ชม. \(m % 60) นาที" }
+    return "อีก \(m) นาที"
+}
+
+enum UsageLimits {
+    static let file = baseDir.appendingPathComponent("limits.json")
+    static let wrapper = baseDir.appendingPathComponent("statusline.sh")
+    static let origJSON = baseDir.appendingPathComponent("statusline-orig.json")
+    static let origCmd = baseDir.appendingPathComponent("statusline-orig.cmd")
+    static var settings: URL { home.appendingPathComponent(".claude/settings.json").resolvingSymlinksInPath() }
+    static var command: String { "bash \"\(wrapper.path)\"" }
+
+    static let script = """
+    #!/bin/bash
+    # Claude Code status line wrapper, written by Angeling (menu: 📊 แสดง limit การใช้งาน).
+    # Saves the status JSON so Angeling can read rate_limits, then runs your own status line, if any.
+    DIR="$(cd "$(dirname "$0")" && pwd)"
+    input=$(cat)
+    tmp=$(mktemp "$DIR/.limits.XXXXXX") && printf '%s' "$input" > "$tmp" && mv -f "$tmp" "$DIR/limits.json"
+    if [ -s "$DIR/statusline-orig.cmd" ]; then
+      printf '%s' "$input" | bash -c "$(cat "$DIR/statusline-orig.cmd")"
+    fi
+
+    """
+
+    struct Failure: LocalizedError { let errorDescription: String? }
+
+    /// What limits.json says now. Debug: ANGELING_LIMITS="62,40" (week,5h), "71" (week only), "none", "wait".
+    static func read() -> LimitState {
+        if let fake = ProcessInfo.processInfo.environment["ANGELING_LIMITS"] {
+            if fake == "none" { return .noData }
+            if fake == "wait" { return .waiting }
+            let p = fake.split(separator: ",").compactMap { Double($0) }
+            let week = p.first.map { LimitWindow(used: $0, resetsAt: Date().addingTimeInterval(3 * 86400 + 5 * 3600)) }
+            let five = p.count > 1 ? LimitWindow(used: p[1], resetsAt: Date().addingTimeInterval(80 * 60)) : nil
+            return .data(week: week, five: five)
+        }
+        guard let data = try? Data(contentsOf: file) else { return .waiting }
+        guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let rl = root["rate_limits"] as? [String: Any] else { return .noData }
+        func window(_ key: String) -> LimitWindow? {
+            guard let w = rl[key] as? [String: Any], let used = (w["used_percentage"] as? NSNumber)?.doubleValue else { return nil }
+            var reset: Date?
+            if let n = w["resets_at"] as? NSNumber {
+                let t = n.doubleValue
+                reset = Date(timeIntervalSince1970: t > 1e12 ? t / 1000 : t)
+            } else if let s = w["resets_at"] as? String {
+                reset = ISO8601DateFormatter().date(from: s)
+            }
+            // Past its reset and nothing newer yet: the window starts over.
+            if let r = reset, r < Date() { return LimitWindow(used: 0, resetsAt: nil) }
+            return LimitWindow(used: min(max(used, 0), 100), resetsAt: reset)
+        }
+        let week = window("seven_day"), five = window("five_hour")
+        return week == nil && five == nil ? .noData : .data(week: week, five: five)
+    }
+
+    private static func loadSettings() throws -> [String: Any] {
+        guard let data = try? Data(contentsOf: settings), !data.isEmpty else { return [:] }
+        guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw Failure(errorDescription: "อ่าน \(settings.path) ไม่ได้ (ไม่ใช่ JSON ที่ถูกต้อง)")
+        }
+        return obj
+    }
+
+    private static func saveSettings(_ root: [String: Any]) throws {
+        let data = try JSONSerialization.data(withJSONObject: root, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
+        guard (try? JSONSerialization.jsonObject(with: data)) != nil else { throw Failure(errorDescription: "สร้าง settings.json ใหม่ไม่สำเร็จ") }
+        let fm = FileManager.default
+        try fm.createDirectory(at: settings.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let backup = URL(fileURLWithPath: settings.path + ".angeling-backup")
+        if fm.fileExists(atPath: settings.path) {
+            try? fm.removeItem(at: backup)
+            try fm.copyItem(at: settings, to: backup)
+        }
+        try data.write(to: settings, options: .atomic)
+    }
+
+    /// Whether settings.json still runs our wrapper (the user may have replaced it, or uninstalled).
+    static func installed() -> Bool {
+        guard let data = try? Data(contentsOf: settings),
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return false }
+        return isOurs(root["statusLine"])
+    }
+
+    static func isOurs(_ statusLine: Any?) -> Bool {
+        ((statusLine as? [String: Any])?["command"] as? String)?.contains("angeling-pet/statusline.sh") ?? false
+    }
+
+    /// Point statusLine at the wrapper, keeping the user's own command to run after it.
+    static func enable() throws {
+        var root = try loadSettings()
+        let fm = FileManager.default
+        try fm.createDirectory(at: baseDir, withIntermediateDirectories: true)
+        try script.write(to: wrapper, atomically: true, encoding: .utf8)
+        try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: wrapper.path)
+        if isOurs(root["statusLine"]) { return }
+        if let sl = root["statusLine"] as? [String: Any] {
+            try JSONSerialization.data(withJSONObject: sl, options: [.sortedKeys, .withoutEscapingSlashes]).write(to: origJSON, options: .atomic)
+            try ((sl["command"] as? String) ?? "").write(to: origCmd, atomically: true, encoding: .utf8)
+            var mine = sl
+            mine["type"] = "command"
+            mine["command"] = command
+            root["statusLine"] = mine
+        } else {
+            try? fm.removeItem(at: origJSON)
+            try? fm.removeItem(at: origCmd)
+            root["statusLine"] = ["type": "command", "command": command]
+        }
+        try saveSettings(root)
+    }
+
+    /// Put the user's status line back (or remove ours). A status line they changed since is left alone.
+    static func disable() throws {
+        var root = try loadSettings()
+        let fm = FileManager.default
+        defer {
+            try? fm.removeItem(at: origJSON)
+            try? fm.removeItem(at: origCmd)
+            try? fm.removeItem(at: file)
+        }
+        guard isOurs(root["statusLine"]) else { return }
+        if let d = try? Data(contentsOf: origJSON), let orig = try? JSONSerialization.jsonObject(with: d) {
+            root["statusLine"] = orig
+        } else {
+            root.removeValue(forKey: "statusLine")
+        }
+        try saveSettings(root)
+    }
+}
+
+/// The limits under the pet while the bubble doesn't show them: one 34×5 bar, the week on top (3 px)
+/// and the 5-hour window under it (2 px); the week fills it all when there is no 5-hour window.
+final class LimitBar: NSView {
+    var week: LimitWindow?
+    var five: LimitWindow?
+    var remaining = false
+    override func draw(_ dirtyRect: NSRect) {
+        let r = bounds
+        let clip = NSBezierPath(roundedRect: r, xRadius: 2, yRadius: 2)
+        NSColor(white: 0, alpha: 0.45).setFill()
+        clip.fill()
+        clip.addClip()
+        func fill(_ w: LimitWindow?, y: CGFloat, h: CGFloat) {
+            guard let w else { return }
+            let share = remaining ? 100 - w.used : w.used
+            limitColor(w.used).setFill()
+            NSRect(x: 0, y: y, width: r.width * CGFloat(share / 100), height: h).fill()
+        }
+        switch (week, five) {
+        case (.some, .some): fill(five, y: 0, h: 2); fill(week, y: 2, h: r.height - 2)
+        case (.some, nil): fill(week, y: 0, h: r.height)
+        default: fill(five, y: 0, h: r.height)
+        }
+    }
+}
+
 // MARK: - Activity rows + bubble
 
 /// Pointer for clickable things: the Ragnarok cursor in the Ragnarok theme, a pointing hand otherwise.
@@ -1388,7 +1590,14 @@ final class PetController: NSObject, NSMenuDelegate {
     var overrideAnim: String?       // transient (jumping, dragging)
     var overrideUntil: Date = .distantPast
     var lastPrimaryKey = ""
-    var expanded = false
+    var expanded = UserDefaults.standard.bool(forKey: "expanded")
+    var limitState = LimitState.off
+    var limitInBubble = false   // the bubble's top row shows the limits, so the bar under the pet stays hidden
+    let limitBar = LimitBar(frame: .zero)
+    var showLimits: Bool { ProcessInfo.processInfo.environment["ANGELING_LIMITS"] != nil || d.bool(forKey: "showLimits") }
+    var limitsLeft: Bool { (ProcessInfo.processInfo.environment["ANGELING_LIMIT_MODE"] ?? d.string(forKey: "limitMode")) == "left" }
+    /// Where the limits show: "auto" (the bubble's top row, or the bar while that row isn't showing), "both", or "bar".
+    var limitPlace: String { ProcessInfo.processInfo.environment["ANGELING_LIMIT_PLACE"] ?? d.string(forKey: "limitPlace") ?? "auto" }
     var sessions: [(SessionState, String)] = []
     var dismissed: [String: Double] = [:]  // session -> updated stamp at dismissal
     var didFirstRefresh = false
@@ -1466,6 +1675,11 @@ final class PetController: NSObject, NSMenuDelegate {
         emote.isHidden = true
         content.addSubview(emote)
         toggle.onClick = { [weak self] in self?.toggleActivity() }
+        content.addSubview(limitBar)
+        limitBar.isHidden = true
+        // Someone else took the status line over (or Angeling was reinstalled): the limits can't arrive, so stop waiting.
+        if d.bool(forKey: "showLimits") && !UsageLimits.installed() { d.set(false, forKey: "showLimits") }
+        pollLimits()
         // The toggle only appears while the pointer is over the pet (or the toggle itself).
         toggle.isHidden = true
         pet.onHover = { [weak self] on in self?.hover(on) }
@@ -1492,7 +1706,7 @@ final class PetController: NSObject, NSMenuDelegate {
         refresh()
         Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in self?.refresh() }
         pollLine()
-        Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in self?.pollLine() }
+        Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in self?.pollLine(); self?.pollLimits() }
         reminders.syncWithCalendar()
         DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in self?.checkForUpdates(manual: false) }
         Timer.scheduledTimer(withTimeInterval: 6 * 3600, repeats: true) { [weak self] _ in self?.checkForUpdates(manual: false) }
@@ -1937,6 +2151,30 @@ final class PetController: NSObject, NSMenuDelegate {
         item("เสียงเตือนเมื่อมีงานที่ต้องดู", #selector(toggleWaitSound), on: waitSound)
         item("แจ้งเตือน LINE", #selector(toggleLine), on: showLine)
         item("แจ้งเตือน Discord", #selector(toggleDiscord), on: showDiscord)
+        item("📊 แสดง limit การใช้งาน Claude", #selector(toggleLimits), on: showLimits)
+        if showLimits {
+            for line in limitMenuLines() {
+                let i = m.addItem(withTitle: line, action: nil, keyEquivalent: "")
+                i.isEnabled = false
+                i.indentationLevel = 1
+            }
+            let modes = NSMenu()
+            for (title, id) in [("ใช้ไปแล้ว", "used"), ("เหลืออยู่", "left")] {
+                let i = modes.addItem(withTitle: title, action: #selector(setLimitMode(_:)), keyEquivalent: "")
+                i.target = self; i.representedObject = id; i.state = (limitsLeft == (id == "left")) ? .on : .off
+            }
+            let mi = m.addItem(withTitle: "แสดงเป็น", action: nil, keyEquivalent: "")
+            mi.submenu = modes
+            mi.indentationLevel = 1
+            let places = NSMenu()
+            for (title, id) in [("บนบับเบิล (หลอดเมื่อซ่อนบับเบิล)", "auto"), ("บนบับเบิลและหลอด", "both"), ("หลอดใต้ Angeling อย่างเดียว", "bar")] {
+                let i = places.addItem(withTitle: title, action: #selector(setLimitPlace(_:)), keyEquivalent: "")
+                i.target = self; i.representedObject = id; i.state = limitPlace == id ? .on : .off
+            }
+            let pi = m.addItem(withTitle: "แสดงที่", action: nil, keyEquivalent: "")
+            pi.submenu = places
+            pi.indentationLevel = 1
+        }
         item("ล้าง session ที่เสร็จแล้ว", #selector(clearDone))
         m.addItem(.separator())
         let upd = NSMenu()
@@ -1977,7 +2215,7 @@ final class PetController: NSObject, NSMenuDelegate {
               let s = sessions.first(where: { $0.0.session == id })?.0 else { return }
         openSession(s)
     }
-    @objc func toggleExpand() { expanded.toggle(); activityHidden = false; refresh() }
+    @objc func toggleExpand() { expanded.toggle(); d.set(expanded, forKey: "expanded"); activityHidden = false; refresh() }
     var hoverHide: DispatchWorkItem?
     func hover(_ on: Bool) {
         hoverHide?.cancel()
@@ -1987,7 +2225,7 @@ final class PetController: NSObject, NSMenuDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8, execute: w) // time to move onto the toggle
     }
 
-    @objc func toggleActivity() { activityHidden.toggle(); expanded = false; refresh() }
+    @objc func toggleActivity() { activityHidden.toggle(); expanded = false; d.set(false, forKey: "expanded"); refresh() }
     @objc func togglePet() {
         petHidden.toggle()
         if petHidden { panel.orderOut(nil) } else { panel.orderFrontRegardless(); setOverride("waving", for: 1.2) }
@@ -2172,30 +2410,45 @@ final class PetController: NSObject, NSMenuDelegate {
         let count = waiting.isEmpty ? active : waiting.count
         statusItem.button?.title = count > 0 ? " \(count)" : ""
 
+        // The limits sit on the bubble's top row; when that row isn't showing, a small bar under the pet does.
+        var barShown = false
+        if showLimits && (limitPlace != "auto" || !(showBubble && limitInBubble)), case let .data(week, five) = limitState {
+            barShown = true
+            limitBar.week = week
+            limitBar.five = five
+            limitBar.remaining = limitsLeft
+            limitBar.toolTip = limitTooltip()
+            limitBar.needsDisplay = true
+        }
+        limitBar.isHidden = !barShown
+        let petBase: CGFloat = barShown ? 8 : 0
+
         // Emote floats above the head (like in RO); the bubble moves up to make room for it.
         var emoteRect = NSRect.zero
         if !emote.isHidden, let img = emote.image {
             let sz = img.size
             let petX = (winWidth - petSize.width) / 2
-            emoteRect = NSRect(x: round(petX + petSize.width / 2 - sz.width / 2 - 12), y: petSize.height - 12,
+            emoteRect = NSRect(x: round(petX + petSize.width / 2 - sz.width / 2 - 12), y: petBase + petSize.height - 12,
                                width: sz.width, height: sz.height)
         }
-        let bubbleY = max(petSize.height - 4, emoteRect.maxY - 12)
-        let h = showBubble ? bubbleY + bubbleSize.height : max(petSize.height, emoteRect.maxY)
+        let bubbleY = max(petBase + petSize.height - 4, emoteRect.maxY - 12)
+        let h = showBubble ? bubbleY + bubbleSize.height : max(petBase + petSize.height, emoteRect.maxY)
         var f = panel.frame
         if f.height != h || f.width != winWidth {
             f.size = NSSize(width: winWidth, height: h) // origin (bottom) stays put, grows upward
             panel.setFrame(f, display: true)
         }
         keepOnScreen()
-        pet.frame = NSRect(x: (winWidth - petSize.width) / 2, y: 0, width: petSize.width, height: petSize.height)
+        pet.frame = NSRect(x: (winWidth - petSize.width) / 2, y: petBase, width: petSize.width, height: petSize.height)
+        limitBar.frame = NSRect(x: round((winWidth - 34) / 2), y: 1, width: 34, height: 5)
         badge.frame = NSRect(x: pet.frame.maxX - 16, y: pet.frame.maxY - 22, width: 18, height: 18)
-        lineBadge.count = activityHidden && showLine ? lineUnread : 0
+        // Collapsed lists leave LINE and Discord out, so their counts go on the pet.
+        lineBadge.count = (activityHidden || !expanded) && showLine ? lineUnread : 0
         lineBadge.frame = NSRect(x: pet.frame.minX - lineBadge.width + 16, y: pet.frame.maxY - 22, width: lineBadge.width, height: 18)
-        discordBadge.count = activityHidden && showDiscord ? discordUnread : 0
+        discordBadge.count = (activityHidden || !expanded) && showDiscord ? discordUnread : 0
         let discordY = lineBadge.count > 0 ? pet.frame.maxY - 42 : pet.frame.maxY - 22  // stacks under LINE's
         discordBadge.frame = NSRect(x: pet.frame.minX - discordBadge.width + 16, y: discordY, width: discordBadge.width, height: 18)
-        toggle.frame = NSRect(x: pet.frame.minX - 32, y: 22, width: 28, height: 22)
+        toggle.frame = NSRect(x: pet.frame.minX - 32, y: petBase + 22, width: 28, height: 22)
         toggle.shown = !activityHidden
         emote.frame = emoteRect
         if showBubble {
@@ -2210,7 +2463,7 @@ final class PetController: NSObject, NSMenuDelegate {
         let lineSig = (updateAvailable ? "U\(latestVersion ?? "")\(updating)" : "")
             + (lineVisible ? "L\(lineUnread)" : "-")
             + (discordVisible ? "|D\(discordUnread)" : "")
-        return "\(expanded)|\(showTask)\(showText)\(showPlan)|\(idleQuiet)|\(lineSig)|\(reminderSignature())|" + live.map { s, st in
+        return "\(expanded)|\(limitState.signature)\(limitsLeft)\(limitPlace)|\(showTask)\(showText)\(showPlan)|\(idleQuiet)|\(lineSig)|\(reminderSignature())|" + live.map { s, st in
             "\(s.session ?? "")\(st)\(s.updated ?? 0)"
         }.joined(separator: ",")
     }
@@ -2316,41 +2569,148 @@ final class PetController: NSObject, NSMenuDelegate {
             }
             return r
         }
-        // Sessions that need you go above everything else, every one of them.
+        // The top row: the limits (when shown) and the collapse / expand chevron.
+        func withHeader(_ rows: [RowView], toggles: Bool) -> [RowView] {
+            let limit = limitText()
+            limitInBubble = limit != nil
+            guard limit != nil || toggles else { return rows }
+            return [headerRow(limit, toggles: toggles, width: w)] + rows
+        }
+
+        limitInBubble = false
         let waiting = live.filter { $0.1 == "waiting" }
         if urgentOnly { return waiting.map { sessionRow($0.0, $0.1, detailed: false) } }
-        let lineRows = reminderRows(width: w) + (updateAvailable ? [updateRow(width: w)] : []) + (lineVisible ? [lineRow()] : []) + (discordVisible ? [discordRow()] : [])
 
         if expanded {
-            if live.isEmpty && lineRows.isEmpty {
-                return [RowView(text: NSAttributedString(string: "ยังไม่มีงานที่กำลังทำ~", attributes: normal), width: w, clickable: false)]
-            }
-            return waiting.map { sessionRow($0.0, $0.1, detailed: true) } + lineRows
+            // Sessions that need you go above everything else, every one of them.
+            var rows = waiting.map { sessionRow($0.0, $0.1, detailed: true) }
+                + reminderRows(width: w) + (updateAvailable ? [updateRow(width: w)] : []) + (lineVisible ? [lineRow()] : []) + (discordVisible ? [discordRow()] : [])
                 + live.filter { $0.1 != "waiting" }.map { sessionRow($0.0, $0.1, detailed: true) }
+            if rows.isEmpty { rows = [RowView(text: NSAttributedString(string: "ยังไม่มีงานที่กำลังทำ~", attributes: normal), width: w, clickable: false)] }
+            return withHeader(rows, toggles: true)
         }
 
-        let activeStates = ["running", "review", "failed"]
-        let active = live.filter { activeStates.contains($0.1) }
-        let finished = live.filter { $0.1 == "done" }
-        var rows: [RowView] = waiting.map { sessionRow($0.0, $0.1, detailed: false) } + lineRows
-        if waiting.isEmpty, let (s, st) = active.first {
-            rows.append(sessionRow(s, st, detailed: false))
-        }
+        // Collapsed: the two rows that matter most (title and latest message), the rest counted in one line.
+        // LINE and Discord show as badges on the pet instead.
+        var ranked: [(row: RowView, waiting: Bool)] = waiting.map { (sessionRow($0.0, $0.1, detailed: false), true) }
+        ranked += live.filter { $0.1 == "failed" }.map { (sessionRow($0.0, $0.1, detailed: false), false) }
+        ranked += reminderRows(width: w).map { ($0, false) }
+        if updateAvailable { ranked.append((updateRow(width: w), false)) }
+        ranked += live.filter { ["running", "review"].contains($0.1) }.map { (sessionRow($0.0, $0.1, detailed: false), false) }
         // Finished tasks stay listed in green until opened, dismissed, or 30 min old.
-        rows += finished.prefix(3).map { sessionRow($0.0, $0.1, detailed: false) }
-        if finished.count > 3 {
-            let more = RowView(text: NSAttributedString(string: "+\(finished.count - 3) งานเสร็จแล้ว  ▾", attributes: dim), width: w, clickable: true)
+        ranked += live.filter { $0.1 == "done" }.map { (sessionRow($0.0, $0.1, detailed: false), false) }
+        guard !ranked.isEmpty else { return [] }
+        var rows = ranked.prefix(2).map { $0.row }
+        let hidden = ranked.dropFirst(2)
+        if !hidden.isEmpty {
+            // Orange when a session waiting on you is among the hidden ones.
+            let urgent = hidden.contains { $0.waiting }
+            let text = "+\(hidden.count) อื่น ๆ" + (urgent ? " · มีงานรอคุณ" : "")
+            let attrs: [NSAttributedString.Key: Any] = urgent ? [.font: NSFont.boldSystemFont(ofSize: 11), .foregroundColor: theme.color("waiting")] : dim
+            let more = RowView(text: NSAttributedString(string: text, attributes: attrs), width: w, clickable: true)
+            more.toolTip = "ดูทุก session"
             more.onClick = { [weak self] in self?.toggleExpand() }
             rows.append(more)
         }
-        let others = waiting.isEmpty ? Array(active.dropFirst()) : active
-        if !others.isEmpty {
-            let more = RowView(text: NSAttributedString(string: "+\(others.count) session กำลังทำงาน  ▾", attributes: dim),
-                               width: w, clickable: true)
-            more.onClick = { [weak self] in self?.toggleExpand() }
-            rows.append(more)
+        return withHeader(rows, toggles: !hidden.isEmpty)
+    }
+
+    // MARK: usage limits
+
+    func pollLimits() {
+        let s = showLimits ? UsageLimits.read() : .off
+        if s != limitState { limitState = s }
+        // Crossing 90% gets one surprised face per reset cycle.
+        guard case let .data(week, five) = s, ProcessInfo.processInfo.environment["ANGELING_SNAPSHOT"] == nil else { return }
+        for (key, win) in [("week", week), ("five", five)] {
+            guard let win, win.used >= 90 else { continue }
+            let stamp = "\(Int(win.resetsAt?.timeIntervalSince1970 ?? 0))"
+            if d.string(forKey: "limitAlert-\(key)") != stamp {
+                d.set(stamp, forKey: "limitAlert-\(key)")
+                showEmote("omg", for: 4)
+            }
         }
-        return rows
+    }
+
+    /// "สัปดาห์ 62%  ·  5 ชม. 40%", or "สัปดาห์ 71%  ·  รีเซ็ต จ. 11:00" without a 5-hour window.
+    func limitText() -> NSAttributedString? {
+        guard showLimits, limitPlace != "bar", case let .data(week, five) = limitState else { return nil }
+        let label: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 11), .foregroundColor: theme.secondary]
+        let out = NSMutableAttributedString()
+        func add(_ name: String, _ win: LimitWindow) {
+            if out.length > 0 { out.append(NSAttributedString(string: "  ·  ", attributes: label)) }
+            out.append(NSAttributedString(string: name + (limitsLeft ? " เหลือ " : " "), attributes: label))
+            let v = limitsLeft ? 100 - win.used : win.used
+            out.append(NSAttributedString(string: "\(Int(v.rounded()))%",
+                                          attributes: [.font: NSFont.boldSystemFont(ofSize: 12), .foregroundColor: limitColor(win.used)]))
+        }
+        if let w = week { add("สัปดาห์", w) }
+        if let f = five { add("5 ชม.", f) } else if let r = week?.resetsAt {
+            out.append(NSAttributedString(string: "  ·  รีเซ็ต \(limitResetText(r))", attributes: label))
+        }
+        return out.length > 0 ? out : nil
+    }
+
+    /// One line per window, with the reset time and how long until it.
+    func limitMenuLines() -> [String] {
+        switch limitState {
+        case .off: return []
+        case .waiting: return ["รอข้อมูลจาก Claude Code…"]
+        case .noData: return ["บัญชีนี้ไม่มีข้อมูล limit"]
+        case let .data(week, five):
+            return [("สัปดาห์นี้", week), ("5 ชม.", five)].compactMap { name, win in
+                guard let win else { return nil }
+                let v = Int((limitsLeft ? 100 - win.used : win.used).rounded())
+                var s = "\(name) \(limitsLeft ? "เหลือ" : "ใช้ไป") \(v)%"
+                if let r = win.resetsAt { s += " · รีเซ็ต \(limitResetText(r)) (\(limitCountdown(r)))" }
+                return s
+            }
+        }
+    }
+
+    func limitTooltip() -> String { limitMenuLines().joined(separator: "\n") }
+
+    func headerRow(_ limit: NSAttributedString?, toggles: Bool, width w: CGFloat) -> RowView {
+        let t = NSMutableAttributedString(attributedString: limit ?? NSAttributedString(string: " ", attributes: [.font: NSFont.systemFont(ofSize: 8)]))
+        let r = RowView(text: t, width: w, clickable: toggles)
+        if toggles, let img = NSImage(systemSymbolName: expanded ? "chevron.up" : "chevron.down", accessibilityDescription: nil)?
+            .withSymbolConfiguration(.init(pointSize: 10, weight: .semibold)) {
+            let v = NSImageView(image: img)
+            v.contentTintColor = theme.secondary
+            v.frame = NSRect(x: w - 24, y: (r.frame.height - 16) / 2, width: 16, height: 16)
+            r.addSubview(v)
+        }
+        let tip = limit != nil ? limitTooltip() : ""
+        r.toolTip = toggles ? (tip.isEmpty ? "" : tip + "\n") + (expanded ? "คลิกเพื่อย่อรายการ" : "คลิกเพื่อดูทุก session") : tip
+        if toggles { r.onClick = { [weak self] in self?.toggleExpand() } }
+        return r
+    }
+
+    @objc func toggleLimits() {
+        let on = !showLimits
+        do {
+            if on { try UsageLimits.enable() } else { try UsageLimits.disable() }
+        } catch {
+            let a = NSAlert()
+            a.messageText = on ? "เปิดการแสดง limit ไม่สำเร็จ" : "คืนค่า status line เดิมไม่สำเร็จ"
+            a.informativeText = error.localizedDescription
+            NSApp.activate(ignoringOtherApps: true)
+            a.runModal()
+            if on { return }
+        }
+        d.set(on, forKey: "showLimits")
+        pollLimits()
+        refresh()
+    }
+
+    @objc func setLimitPlace(_ sender: NSMenuItem) {
+        d.set(sender.representedObject as? String, forKey: "limitPlace")
+        refresh()
+    }
+
+    @objc func setLimitMode(_ sender: NSMenuItem) {
+        d.set(sender.representedObject as? String, forKey: "limitMode")
+        refresh()
     }
 
     @objc func rowMenuOpen(_ sender: NSMenuItem) { menuOpenSession(sender) }
@@ -2405,7 +2765,7 @@ if let snap = ProcessInfo.processInfo.environment["ANGELING_SNAPSHOT"] {
     let savedActivity = controller.activityHidden, savedPet = controller.petHidden
     controller.petHidden = false
     controller.activityHidden = env["ANGELING_HIDE_ACTIVITY"] != nil
-    if env["ANGELING_EXPANDED"] != nil { controller.expanded = true }
+    controller.expanded = env["ANGELING_EXPANDED"] != nil
     controller.lineUnread = LineWatch.unread()
     controller.discordUnread = DiscordWatch.unread()
     controller.refresh()

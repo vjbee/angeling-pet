@@ -49,6 +49,7 @@ cd ~/apps/angeling-pet && git pull && ./install.sh
 | `~/Applications/Angeling.app` | `~/.claude/angeling-pet/` (ภาพ, การเตือน, state) |
 | LaunchAgent (เปิดเองตอน login) | การตั้งค่า (ตำแหน่ง, ตัวเลือกที่ซ่อนไว้) |
 | hook ของ Angeling ใน `~/.claude/settings.json` (hook อื่นไม่ถูกแตะ) | event ที่เพิ่มลงปฏิทินไว้แล้ว |
+| status line ของ [limit การใช้งาน](Usage-Limits.md) (คืน status line เดิมของคุณให้) | |
 
 ถ้าจะลบทุกอย่าง รวมถึงไฟล์ การเตือน และการตั้งค่า:
 
