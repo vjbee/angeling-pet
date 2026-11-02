@@ -1,0 +1,52 @@
+src/main.swift
+  s_9dbe23bfbb0037::t_0afbe6ed44ffbb 5-6,1593-1598,1678-1679,1682,1709,2154-2168,2177,2218,2228,2413-2414,2416-2425,2431,2434-2435,2442-2443,2445-2446,2448,2451,2572-2580,2585-2587,2589-2590,2594,2597-2598,2602-2611,2615-2631,2633-2636,2638-2673,2676-2677,2682-2702,2708-2713,2768
+  s_9dbe23bfbb0037::t_9ea1b9f88e1a0b 1005-1011,1680-1681
+  s_9dbe23bfbb0037::t_2d71f4069c07b5 2593,2595-2596,2599,2601
+  s_9dbe23bfbb0037::t_b76c1a08b977e8 884-914,916-918,921-1004,1012-1083
+  s_9dbe23bfbb0037::t_d8607e9ed6e225 915,919-920,2675,2678-2681
+  s_9dbe23bfbb0037::t_6d06931c657237 17,1599-1600,2169-2176,2415,2466,2637,2703-2707
+  s_9dbe23bfbb0037::t_6edb7557256728 2674
+README.md
+  s_9dbe23bfbb0037::t_6d06931c657237 57
+  s_9dbe23bfbb0037::t_1dfbfca09c488f 48,123,145
+  s_9dbe23bfbb0037::t_2d71f4069c07b5 56
+docs/Emotes-and-Animations.md
+  s_9dbe23bfbb0037::t_1dfbfca09c488f 12
+docs/README.md
+  s_9dbe23bfbb0037::t_1dfbfca09c488f 7,35
+docs/Development.md
+  s_9dbe23bfbb0037::t_1dfbfca09c488f 37-39
+  s_9dbe23bfbb0037::t_6d06931c657237 40
+docs/Usage.md
+  s_9dbe23bfbb0037::t_1dfbfca09c488f 12,60
+  s_9dbe23bfbb0037::t_6d06931c657237 70
+CLAUDE.md
+  s_9dbe23bfbb0037::t_1dfbfca09c488f 9,20
+  s_9dbe23bfbb0037::t_6d06931c657237 36
+docs/Usage-Limits.md
+  s_9dbe23bfbb0037::t_1d744fe9ffeb24 1-20,29-54
+  s_9dbe23bfbb0037::t_6d06931c657237 21-28
+docs/Updating-and-Uninstalling.md
+  s_9dbe23bfbb0037::t_50006d2e430e97 52
+uninstall.sh
+  s_9dbe23bfbb0037::t_9ea1b9f88e1a0b 2,22-33
+docs/Activity-Bubble.md
+  s_9dbe23bfbb0037::t_2d71f4069c07b5 53
+  s_9dbe23bfbb0037::t_1dfbfca09c488f 51-52,54-55,57-67,69,73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.3",
+  "base_commit_sha": "43d586a243fce7506487814ccc4334b147b8e337",
+  "prompts": {},
+  "sessions": {
+    "s_9dbe23bfbb0037": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8b9cc4c1-d438-4369-87a4-97503850f911",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "vasit <n_vasit@hotmail.com>"
+    }
+  }
+}
