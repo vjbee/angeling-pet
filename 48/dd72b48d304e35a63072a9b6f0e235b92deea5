@@ -1,0 +1,26 @@
+src/main.swift
+  s_9dbe23bfbb0037::t_c5ea1bfba4f047 2422,2424-2425
+  s_9dbe23bfbb0037::t_3579e18e04977b 2428-2430,2432-2446,2450-2496,2498
+  s_9dbe23bfbb0037::t_dd749947732017 1470-1472
+  s_9dbe23bfbb0037::t_11b20f23bd809d 1193-1271
+  s_9dbe23bfbb0037::t_5a96cce92fd0d8 1550-1554
+  s_9dbe23bfbb0037::t_fe5abdbe0cbb06 2262-2264,2269,2272-2273
+  s_9dbe23bfbb0037::t_a82d7691432c01 2280-2287
+  s_9dbe23bfbb0037::t_b072da8b937e71 2294
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.3",
+  "base_commit_sha": "48dd72b48d304e35a63072a9b6f0e235b92deea5",
+  "prompts": {},
+  "sessions": {
+    "s_9dbe23bfbb0037": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8b9cc4c1-d438-4369-87a4-97503850f911",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "vasit <n_vasit@hotmail.com>"
+    }
+  }
+}
